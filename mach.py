@@ -25,6 +25,7 @@ import sys
 import textwrap
 
 __MACH_FILE_NAME = "mach.json"
+__COMPILER = "g++"
 
 def __cmd_new(args):
     """ Command new """
@@ -41,8 +42,10 @@ def __cmd_new(args):
 def __cmd_build(args):
     """ Command build """
 
-    targets = [] if args is None else args
-    build_targets(targets)
+    if len(args) > 0:
+        __error(f"Unexpected args {args[1:]}")
+
+    build_target()
 
 
 def new_project(project_name):
@@ -67,11 +70,27 @@ def new_project(project_name):
     __git_init(project_name)
 
 
-def build_targets(target_names):
-    """ Build a list of targets """
+def build_target():
+    """ Build target """
 
-    # TODO: Implement
-    __error("Not implemented")
+    try:
+        mach_file = open(__MACH_FILE_NAME, 'r')
+    except FileNotFoundError:
+        __error(f"No {__MACH_FILE_NAME} file found")
+
+    config = json.load(mach_file)
+    os.makedirs(config["out"], exist_ok=True)
+
+    compiler_cmd = []
+    compiler_cmd.append(config["compiler"])
+    for flag in config["ccflags"]:
+        compiler_cmd.append(flag)
+    compiler_cmd.extend(["-I", config["include"]])
+    for source in config["srcs"]:
+        compiler_cmd.append(source)
+    compiler_cmd.extend(["-o", config["out"] + "/" + config["target"]])
+
+    __run_cmd(compiler_cmd)
 
 
 def __git_init(path):
@@ -101,6 +120,7 @@ def __touch_mach_json(path, target):
             "include" : "include",
             "out" : "build",
 
+            "compiler" : "g++",
             "ccflags" : [
 
             ],
