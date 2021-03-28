@@ -24,9 +24,9 @@ import subprocess
 import sys
 import textwrap
 
+
 __MACH_FILE_NAME = "mach.json"
 
-__DEFAULT_MAIN_BRANCH = "main"
 __DEFAULT_MAIN_CPP = "main.cpp"
 
 __DEFAULT_COMPILER = "g++"
@@ -125,7 +125,7 @@ def __load_json():
 
 def __git_init(path):
     """ Init git repository in the project path """
-    __run_cmd(["git", "init", f"{path}/", "-q", "-b", __DEFAULT_MAIN_BRANCH])
+    __run_cmd(["git", "init", f"{path}/", "-q"])
 
 
 def __touch_gitignore(path):
@@ -194,7 +194,7 @@ def __run_cmd(cmd):
     return subprocess.run(cmd, check=True)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Machen build system.")
+    parser = argparse.ArgumentParser(description="Mach build system.")
     parser.add_argument('command', type=str, nargs='+', help='new, build, run')
     arguments = parser.parse_args()
 
