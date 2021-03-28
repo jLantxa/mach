@@ -25,7 +25,15 @@ import sys
 import textwrap
 
 __MACH_FILE_NAME = "mach.json"
+
+__DEFAULT_MAIN_BRANCH = "main"
+__DEFAULT_MAIN_CPP = "main.cpp"
+
 __DEFAULT_COMPILER = "g++"
+__DEFAULT_INCLUDE = "include"
+__DEFAULT_SRC = "src"
+__DEFAULT_OUT = "out"
+
 
 def __cmd_new(args):
     """ Command new """
@@ -65,8 +73,8 @@ def new_project(project_name):
         __error(f"Project {project_name} already exists")
 
     subdirs = [
-        os.path.join(project_name, "include"),
-        os.path.join(project_name, "src")
+        os.path.join(project_name, __DEFAULT_INCLUDE),
+        os.path.join(project_name, __DEFAULT_SRC)
     ]
 
     for _dir in subdirs:
@@ -75,7 +83,7 @@ def new_project(project_name):
     __touch_gitignore(os.path.join(project_name, ".gitignore"))
     __touch_mach_json(os.path.join(project_name, __MACH_FILE_NAME), project_name)
 
-    __touch_main(os.path.join(project_name, "src", "main.cpp"))
+    __touch_main(os.path.join(project_name, __DEFAULT_SRC, __DEFAULT_MAIN_CPP))
 
     __git_init(project_name)
 
@@ -117,16 +125,15 @@ def __load_json():
 
 def __git_init(path):
     """ Init git repository in the project path """
-    main_branch = "main"
-    __run_cmd(["git", "init", f"{path}/", "-q", "-b", main_branch])
+    __run_cmd(["git", "init", f"{path}/", "-q", "-b", __DEFAULT_MAIN_BRANCH])
 
 
 def __touch_gitignore(path):
     """ Create gitignore """
-    template = '''\
+    template = f'''\
         .vscode
 
-        build/
+        {__DEFAULT_OUT}/
     '''
     gitignore_file = open(path, 'w')
     gitignore_file.write(textwrap.dedent(template))
@@ -139,8 +146,8 @@ def __touch_mach_json(path, target):
     template = f'''\
         {{
             "target" : "{target}",
-            "include" : "include",
-            "out" : "build",
+            "include" : "{__DEFAULT_INCLUDE}",
+            "out" : "{__DEFAULT_OUT}",
 
             "compiler" : "{__DEFAULT_COMPILER}",
             "ccflags" : [
@@ -152,7 +159,7 @@ def __touch_mach_json(path, target):
             ],
 
             "srcs" : [
-                "src/main.cpp"
+                "{__DEFAULT_SRC}/{__DEFAULT_MAIN_CPP}"
             ]
         }}
     '''
