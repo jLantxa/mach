@@ -25,6 +25,8 @@ import sys
 import textwrap
 
 
+__VERSION = "0.0.1"
+
 __MACH_FILE_NAME = "mach.json"
 
 __DEFAULT_MAIN_CPP = "main.cpp"
@@ -54,6 +56,7 @@ def __cmd_build(args):
         __error(f"Unexpected args {args[0:]}")
 
     build_target()
+
 
 def __cmd_run(args):
     """ Command run """
@@ -183,6 +186,7 @@ def __touch_main(path):
     gitignore_file.write(textwrap.dedent(template))
     gitignore_file.close()
 
+
 def __error(msg):
     """ Print an error message and exit """
     print("Error:", msg)
@@ -193,9 +197,18 @@ def __run_cmd(cmd):
     """ Run a command in the system shell """
     return subprocess.run(cmd, check=True)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mach build system.")
-    parser.add_argument('command', type=str, nargs='+', help='new, build, run')
+
+    parser.add_argument("-v", "--version",
+        action="version",
+        version=f"mach version {__VERSION}")
+    parser.add_argument("command",
+        type=str,
+        nargs='+',
+        help="new, build, run")
+
     arguments = parser.parse_args()
 
     commands = {
