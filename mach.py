@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+
+"""
+Mach build system for C++
+Copyright (C) 2021 Javier Lancha Vázquez
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import textwrap
+
+__MACH_FILE_NAME = "mach.json"
+
+def __cmd_new(args):
+    """ Command new """
+
+    if len(args) == 0:
+        __error("Expected project name")
+    elif len(args) > 1:
+        __error(f"Unexpected args {args[1:]}")
+
+    project_name = args[0]
+    new_project(project_name)
+
+
+def __cmd_build(args):
+    """ Command build """
+
+    targets = [] if args is None else args
+    build_targets(targets)
+
+
+def new_project(project_name):
+    """ Create a new project """
+
+    try:
+        os.mkdir(project_name)
+    except FileExistsError:
+        __error(f"Project {project_name} already exists")
+
+    subdirs = [
+        os.path.join(project_name, "include"),
+        os.path.join(project_name, "src")
+    ]
+
+    for _dir in subdirs:
+        os.makedirs(_dir, exist_ok=True)
+
+    __touch_gitignore(os.path.join(project_name, ".gitignore"))
+    __touch_mach_json(os.path.join(project_name, __MACH_FILE_NAME), project_name)
+
+    __git_init(project_name)
+
+
+def build_targets(target_names):
+    """ Build a list of targets """
+
+    # TODO: Implement
+    __error("Not implemented")
+
+
+def __git_init(path):
+    """ Init git repository in the project path """
+    main_branch = "main"
+    __run_cmd(["git", "init", f"{path}/", "-q", "-b", main_branch])
+
+
+def __touch_gitignore(path):
+    """ Create gitignore """
+    template = '''\
+        .vscode
+
+        build/
+    '''
+    gitignore_file = open(path, 'w')
+    gitignore_file.write(textwrap.dedent(template))
+    gitignore_file.close()
+
+
+def __touch_mach_json(path, target):
+    """ Create mach.json """
+
+    template = f'''\
+        {{
+            "target" : "{target}",
+            "include" : "include",
+            "out" : "build",
+
+            "ccflags" : [
+
+            ],
+
+            "srcs" : [
+
+            ]
+        }}
+    '''
+    gitignore_file = open(path, 'w')
+    gitignore_file.write(textwrap.dedent(template))
+    gitignore_file.close()
+
+
+def __error(msg):
+    """ Print an error message and exit """
+    print("Error:", msg)
+    sys.exit(-1)
+
+
+def __run_cmd(cmd):
+    """ Run a command in the system shell """
+    return subprocess.run(cmd, check=True)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Machen build system.")
+    parser.add_argument('command', type=str, nargs='+', help='new, build')
+    arguments = parser.parse_args()
+
+    commands = {
+        "new" : __cmd_new,
+        "build" : __cmd_build,
+    }
+
+    cmd_name = arguments.command[0]
+    cmd_args = arguments.command[1:]
+
+    if cmd_name in commands.keys():
+        command = commands[cmd_name]
+        command(cmd_args)
+    else:
+        __error(f"Unknown command {cmd_name}")
