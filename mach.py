@@ -43,7 +43,7 @@ def __cmd_build(args):
     """ Command build """
 
     if len(args) > 0:
-        __error(f"Unexpected args {args[1:]}")
+        __error(f"Unexpected args {args[0:]}")
 
     build_target()
 
@@ -51,7 +51,7 @@ def __cmd_run(args):
     """ Command run """
 
     if len(args) > 0:
-        __error(f"Unexpected args {args[1:]}")
+        __error(f"Unexpected args {args[0:]}")
 
     run_target()
 
