@@ -25,7 +25,7 @@ import sys
 import textwrap
 
 __MACH_FILE_NAME = "mach.json"
-__COMPILER = "g++"
+__DEFAULT_COMPILER = "g++"
 
 def __cmd_new(args):
     """ Command new """
@@ -47,6 +47,14 @@ def __cmd_build(args):
 
     build_target()
 
+def __cmd_run(args):
+    """ Command run """
+
+    if len(args) > 0:
+        __error(f"Unexpected args {args[1:]}")
+
+    run_target()
+
 
 def new_project(project_name):
     """ Create a new project """
@@ -67,30 +75,44 @@ def new_project(project_name):
     __touch_gitignore(os.path.join(project_name, ".gitignore"))
     __touch_mach_json(os.path.join(project_name, __MACH_FILE_NAME), project_name)
 
+    __touch_main(os.path.join(project_name, "src", "main.cpp"))
+
     __git_init(project_name)
 
 
 def build_target():
     """ Build target """
 
-    try:
-        mach_file = open(__MACH_FILE_NAME, 'r')
-    except FileNotFoundError:
-        __error(f"No {__MACH_FILE_NAME} file found")
-
-    config = json.load(mach_file)
+    config = __load_json()
     os.makedirs(config["out"], exist_ok=True)
 
     compiler_cmd = []
     compiler_cmd.append(config["compiler"])
-    for flag in config["ccflags"]:
-        compiler_cmd.append(flag)
+    for ccflag in config["ccflags"]:
+        compiler_cmd.append(ccflag)
     compiler_cmd.extend(["-I", config["include"]])
     for source in config["srcs"]:
         compiler_cmd.append(source)
     compiler_cmd.extend(["-o", config["out"] + "/" + config["target"]])
+    for ldflag in config["ldflags"]:
+        compiler_cmd.append(ldflag)
 
     __run_cmd(compiler_cmd)
+
+
+def run_target():
+    """ Run target """
+    config = __load_json()
+    target = [config["out"] + "/" + config["target"]]
+    __run_cmd(target)
+
+
+def __load_json():
+    try:
+        mach_file = open(__MACH_FILE_NAME, 'r')
+    except FileNotFoundError:
+        __error(f"No {__MACH_FILE_NAME} file found")
+    return json.load(mach_file)
 
 
 def __git_init(path):
@@ -120,13 +142,17 @@ def __touch_mach_json(path, target):
             "include" : "include",
             "out" : "build",
 
-            "compiler" : "g++",
+            "compiler" : "{__DEFAULT_COMPILER}",
             "ccflags" : [
 
             ],
 
-            "srcs" : [
+            "ldflags" : [
 
+            ],
+
+            "srcs" : [
+                "src/main.cpp"
             ]
         }}
     '''
@@ -134,6 +160,21 @@ def __touch_mach_json(path, target):
     gitignore_file.write(textwrap.dedent(template))
     gitignore_file.close()
 
+
+def __touch_main(path):
+    """ Create main.cpp """
+
+    template = '''\
+        #include <cstdio>
+
+        int main(int argc, char* argv[]) {
+            puts("Hello, world!");
+            return 0;
+        }
+    '''
+    gitignore_file = open(path, 'w')
+    gitignore_file.write(textwrap.dedent(template))
+    gitignore_file.close()
 
 def __error(msg):
     """ Print an error message and exit """
@@ -147,12 +188,13 @@ def __run_cmd(cmd):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Machen build system.")
-    parser.add_argument('command', type=str, nargs='+', help='new, build')
+    parser.add_argument('command', type=str, nargs='+', help='new, build, run')
     arguments = parser.parse_args()
 
     commands = {
         "new" : __cmd_new,
         "build" : __cmd_build,
+        "run" : __cmd_run
     }
 
     cmd_name = arguments.command[0]
