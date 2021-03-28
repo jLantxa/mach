@@ -43,7 +43,7 @@ def __cmd_new(args):
     if len(args) == 0:
         __error("Expected project name")
     elif len(args) > 1:
-        __error(f"Unexpected args {args[1:]}")
+        __error(f"Unexpected args {__italic(__blue(str(args[1:])))}")
 
     project_name = args[0]
     new_project(project_name)
@@ -53,7 +53,7 @@ def __cmd_build(args):
     """ Command build """
 
     if len(args) > 0:
-        __error(f"Unexpected args {args[0:]}")
+        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
 
     build_target()
 
@@ -62,7 +62,7 @@ def __cmd_run(args):
     """ Command run """
 
     if len(args) > 0:
-        __error(f"Unexpected args {args[0:]}")
+        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
 
     run_target()
 
@@ -73,7 +73,7 @@ def new_project(project_name):
     try:
         os.mkdir(project_name)
     except FileExistsError:
-        __error(f"Project {project_name} already exists")
+        __error(f"Project {__italic(__blue(project_name))} already exists")
 
     subdirs = [
         os.path.join(project_name, __DEFAULT_INCLUDE),
@@ -122,7 +122,7 @@ def __load_json():
     try:
         mach_file = open(__MACH_FILE_NAME, 'r')
     except FileNotFoundError:
-        __error(f"No {__MACH_FILE_NAME} file found")
+        __error(f"No {__italic(__blue(__MACH_FILE_NAME))} file found")
     return json.load(mach_file)
 
 
@@ -187,10 +187,36 @@ def __touch_main(path):
     gitignore_file.close()
 
 
-def __error(msg):
+def __red(text):
+    return "\033[91m" + text + "\033[0m"
+
+
+def __green(text):
+    return "\033[92m" + text + "\033[0m"
+
+
+def __blue(text):
+    return "\033[96m" + text + "\033[0m"
+
+
+def __bold(text):
+    return "\033[1m" + text + "\033[0m"
+
+
+def __italic(text):
+    return "\033[3m" + text + "\033[0m"
+
+
+def __error(msg, do_exit=True):
     """ Print an error message and exit """
-    print("Error:", msg)
-    sys.exit(-1)
+    print(__bold(__red("Error:")), msg)
+    if do_exit:
+        sys.exit(-1)
+
+
+def __info(msg):
+    """ Print an info message """
+    print(__bold(__blue("Info:")), msg)
 
 
 def __run_cmd(cmd):
@@ -199,11 +225,11 @@ def __run_cmd(cmd):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Mach build system.")
+    parser = argparse.ArgumentParser(description=__blue("Mach build system."))
 
     parser.add_argument("-v", "--version",
         action="version",
-        version=f"mach version {__VERSION}")
+        version=f"mach version {__blue(__VERSION)}")
     parser.add_argument("command",
         type=str,
         nargs='+',
@@ -224,4 +250,4 @@ if __name__ == "__main__":
         command = commands[cmd_name]
         command(cmd_args)
     else:
-        __error(f"Unknown command {cmd_name}")
+        __error(f"Unknown command {__italic(__blue(cmd_name))}")
