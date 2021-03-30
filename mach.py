@@ -166,9 +166,9 @@ def __touch_mach_json(path, target):
             ]
         }}
     '''
-    gitignore_file = open(path, 'w')
-    gitignore_file.write(textwrap.dedent(template))
-    gitignore_file.close()
+    mach_file = open(path, 'w')
+    mach_file.write(textwrap.dedent(template))
+    mach_file.close()
 
 
 def __touch_main(path):
@@ -182,9 +182,9 @@ def __touch_main(path):
             return 0;
         }
     '''
-    gitignore_file = open(path, 'w')
-    gitignore_file.write(textwrap.dedent(template))
-    gitignore_file.close()
+    main_file = open(path, 'w')
+    main_file.write(textwrap.dedent(template))
+    main_file.close()
 
 
 def __red(text):
