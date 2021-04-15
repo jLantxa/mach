@@ -71,6 +71,15 @@ def __cmd_run(args):
     run_target()
 
 
+def __cmd_compdb(args):
+    """ Command compdb """
+
+    if len(args) > 0:
+        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+
+    build_compilation_database()
+
+
 def new_project(project_name):
     """ Create a new project """
 
@@ -107,10 +116,9 @@ def __get_object_file_path(config, src):
     return object_path
 
 
-def __build_translation_unit(config, src):
-    """ builds a single translation unit for tha associated source """
+def __get_translation_unit_build_cmd(config, src):
+    """ Returns the build cmd for the associated source """
     object_file = __get_object_file_path(config, src)
-    os.makedirs(os.path.dirname(object_file), exist_ok=True)
 
     compiler_cmd = []
     compiler_cmd.append(config["compiler"])
@@ -120,7 +128,15 @@ def __build_translation_unit(config, src):
     compiler_cmd.extend(["-I", config["include"]])
     compiler_cmd.append(src)
     compiler_cmd.extend(["-o", object_file])
-    __run_cmd(compiler_cmd)
+    return compiler_cmd
+
+
+def __build_tranlation_unit(config, src):
+    """ Builds the given translation unit """
+    object_file = __get_object_file_path(config, src)
+    os.makedirs(os.path.dirname(object_file), exist_ok=True)
+    cmd = __get_translation_unit_build_cmd(config, src)
+    __run_cmd(cmd)
 
 
 def __link_binary(config):
@@ -140,12 +156,28 @@ def __link_binary(config):
     __run_cmd(compiler_cmd)
 
 
+def build_compilation_database():
+    """ Generates a compile_commands.json compatible database that can be used
+        with programs such as clangd and vscode to get IntelliSense-like
+        features.
+    """
+    config = __load_json()
+    database = []
+    for src in config["srcs"]:
+        database.append({
+            "arguments": __get_translation_unit_build_cmd(config, src),
+            "directory": os.getcwd(),
+            "file": src
+        })
+    with open(os.path.join(config["out"], 'compile_commands.json'), 'w') as db_file:
+        json.dump(database, db_file, indent=4)
+
+
 def build_target():
     """ Build target """
     config = __load_json()
     for src in config["srcs"]:
-        __build_translation_unit(config, src)
-
+        __build_tranlation_unit(config, src)
     __link_binary(config)
 
 
@@ -271,6 +303,13 @@ def __run_cmd(cmd):
 
 
 if __name__ == "__main__":
+    commands = {
+        "new" : __cmd_new,
+        "build" : __cmd_build,
+        "run" : __cmd_run,
+        "compdb": __cmd_compdb,
+    }
+
     parser = argparse.ArgumentParser(description=__blue("Mach build system."))
 
     parser.add_argument("-v", "--version",
@@ -279,16 +318,10 @@ if __name__ == "__main__":
     parser.add_argument("command",
         type=str,
         nargs='+',
-        help="new, build, run")
+        help=", ".join(commands))
     parser.add_argument("-V", "--verbose", action='store_true')
 
     arguments = parser.parse_args()
-
-    commands = {
-        "new" : __cmd_new,
-        "build" : __cmd_build,
-        "run" : __cmd_run
-    }
 
     cmd_name = arguments.command[0]
     cmd_args = arguments.command[1:]
