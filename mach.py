@@ -91,24 +91,58 @@ def new_project(project_name):
     __git_init(project_name)
 
 
-def build_target():
-    """ Build target """
+def __get_object_file_path(config, src):
+    """ Returns the path of the object file associated to the input source """
+    out_path = os.path.relpath(config["out"])
+    intermeditate_path = os.path.join(out_path, 'intermeditates')
+    src_dir = os.path.dirname(src)
+    src_name, _ = os.path.splitext(os.path.basename(src))
+    src_name += '.o'
+    object_dir = os.path.join(intermeditate_path, src_dir)
+    object_path = os.path.join(object_dir, src_name)
+    return object_path
 
-    config = __load_json()
-    os.makedirs(config["out"], exist_ok=True)
+
+def __build_translation_unit(config, src):
+    """ builds a single translation unit for tha associated source """
+    object_file = __get_object_file_path(config, src)
+    os.makedirs(os.path.dirname(object_file), exist_ok=True)
+
+    compiler_cmd = []
+    compiler_cmd.append(config["compiler"])
+    compiler_cmd.extend(["-c"])
+    for ccflag in config["ccflags"]:
+        compiler_cmd.append(ccflag)
+    compiler_cmd.extend(["-I", config["include"]])
+    compiler_cmd.append(src)
+    compiler_cmd.extend(["-o", object_file])
+    __run_cmd(compiler_cmd)
+
+
+def __link_binary(config):
+    """ links the target binary """
+    to_object_file = lambda src : __get_object_file_path(config, src)
+    object_files = map(to_object_file, config["srcs"])
 
     compiler_cmd = []
     compiler_cmd.append(config["compiler"])
     for ccflag in config["ccflags"]:
         compiler_cmd.append(ccflag)
     compiler_cmd.extend(["-I", config["include"]])
-    for source in config["srcs"]:
-        compiler_cmd.append(source)
+    compiler_cmd.extend(object_files)
     compiler_cmd.extend(["-o", config["out"] + "/" + config["target"]])
     for ldflag in config["ldflags"]:
         compiler_cmd.append(ldflag)
-
     __run_cmd(compiler_cmd)
+
+
+def build_target():
+    """ Build target """
+    config = __load_json()
+    for src in config["srcs"]:
+        __build_translation_unit(config, src)
+
+    __link_binary(config)
 
 
 def run_target():
