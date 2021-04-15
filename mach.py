@@ -182,6 +182,7 @@ def __build_tranlation_unit(config, src):
     object_file = __get_object_file_path(config, src)
     os.makedirs(os.path.dirname(object_file), exist_ok=True)
     if __needs_rebuild(object_file, __parse_deps(object_file)):
+        __info(f'Building {object_file}')
         cmd = __get_translation_unit_build_cmd(config, src)
         __run_cmd(cmd)
     else:
@@ -208,6 +209,7 @@ def __link_binary(config):
     compiler_cmd.extend(["-o", target])
     for ldflag in config["ldflags"]:
         compiler_cmd.append(ldflag)
+    __info(f'linking target {target}')
     __run_cmd(compiler_cmd)
 
 
@@ -341,7 +343,7 @@ def __error(msg, do_exit=True):
 
 def __info(msg):
     """ Print an info message """
-    print(__bold(__blue("Info:")), msg)
+    print(__bold(__green("Info:")), msg)
 
 
 def __verbose(msg):
