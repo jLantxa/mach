@@ -18,6 +18,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
+import datetime
 import json
 import os
 import subprocess
@@ -128,21 +129,75 @@ def __get_translation_unit_build_cmd(config, src):
     compiler_cmd.extend(["-I", config["include"]])
     compiler_cmd.append(src)
     compiler_cmd.extend(["-o", object_file])
+    compiler_cmd.append("-MMD")
     return compiler_cmd
+
+
+def __parse_deps(object_file):
+    """ Generator function that returns the dependencies of the object file """
+    deps_file_path, _ = os.path.splitext(object_file)
+    deps_file_path += '.d'
+    with open(deps_file_path, 'r') as deps_file:
+        for dependencies in deps_file:
+
+            dependencies = dependencies.replace(f'{object_file}: ', '')
+            dependencies = dependencies.replace(f'\\', '')
+            dependencies = dependencies.strip()
+            dependencies = dependencies.split()
+
+            for dependency in dependencies:
+                __verbose(f'found dependency "{dependency}" for target "{object_file}"')
+                yield dependency
+
+
+def __needs_rebuild(target, dependencies):
+    """ Returns true if the source needs to be built """
+    __verbose(f'checking if "{target}" needs to be rebuilt')
+    if not os.path.exists(target):
+        __verbose(f'"{target}" does not exist yet')
+        return True
+
+    def get_modification_time(path):
+        return datetime.datetime.fromtimestamp(os.path.getmtime(path))
+
+    object_file_modification_time = get_modification_time(target)
+    def was_updated(dependency):
+        if os.path.exists(dependency):
+            dep_modification_time = get_modification_time(dependency)
+            updated = dep_modification_time > object_file_modification_time
+            if updated:
+                __verbose(f'dependency "{dependency}" is newer!')
+            else:
+                __verbose(f'dependency "{dependency}" is up to date')
+            return updated
+        else:
+            __verbose(f'dependency "{dependency}" does not exist')
+            return True
+
+    return any(map(was_updated, dependencies))
 
 
 def __build_tranlation_unit(config, src):
     """ Builds the given translation unit """
     object_file = __get_object_file_path(config, src)
     os.makedirs(os.path.dirname(object_file), exist_ok=True)
-    cmd = __get_translation_unit_build_cmd(config, src)
-    __run_cmd(cmd)
+    if __needs_rebuild(object_file, __parse_deps(object_file)):
+        cmd = __get_translation_unit_build_cmd(config, src)
+        __run_cmd(cmd)
+    else:
+        __verbose(f'skipping rebuild for "{src}"')
 
 
 def __link_binary(config):
     """ links the target binary """
+    target = os.path.join(config['out'], config['target'])
     to_object_file = lambda src : __get_object_file_path(config, src)
-    object_files = map(to_object_file, config["srcs"])
+    object_files = list(map(to_object_file, config["srcs"]))
+    __verbose(f'linking target {target} from {object_files}')
+
+    if not __needs_rebuild(target, object_files):
+        __verbose(f'skipping linking for target {config["target"]}')
+        return
 
     compiler_cmd = []
     compiler_cmd.append(config["compiler"])
@@ -150,7 +205,7 @@ def __link_binary(config):
         compiler_cmd.append(ccflag)
     compiler_cmd.extend(["-I", config["include"]])
     compiler_cmd.extend(object_files)
-    compiler_cmd.extend(["-o", config["out"] + "/" + config["target"]])
+    compiler_cmd.extend(["-o", target])
     for ldflag in config["ldflags"]:
         compiler_cmd.append(ldflag)
     __run_cmd(compiler_cmd)
