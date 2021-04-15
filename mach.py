@@ -37,6 +37,10 @@ __DEFAULT_SRC = "src"
 __DEFAULT_OUT = "out"
 
 
+# This flag can be set to print verbose debugging information during the build/run process
+LOG_VERBOSE = False
+
+
 def __cmd_new(args):
     """ Command new """
 
@@ -253,8 +257,16 @@ def __info(msg):
     print(__bold(__blue("Info:")), msg)
 
 
+def __verbose(msg):
+    """ Print an verbose message """
+    global LOG_VERBOSE
+    if LOG_VERBOSE:
+        print(__bold(__blue("Verbose:")), msg)
+
+
 def __run_cmd(cmd):
     """ Run a command in the system shell """
+    __verbose(f'Executing program: {" ".join(cmd)}')
     return subprocess.run(cmd, check=True)
 
 
@@ -268,6 +280,7 @@ if __name__ == "__main__":
         type=str,
         nargs='+',
         help="new, build, run")
+    parser.add_argument("-V", "--verbose", action='store_true')
 
     arguments = parser.parse_args()
 
@@ -279,8 +292,10 @@ if __name__ == "__main__":
 
     cmd_name = arguments.command[0]
     cmd_args = arguments.command[1:]
+    LOG_VERBOSE = arguments.verbose
 
     if cmd_name in commands.keys():
+        __verbose(f'Running command {cmd_name} with arguments {cmd_args}')
         command = commands[cmd_name]
         command(cmd_args)
     else:
