@@ -209,7 +209,7 @@ def __link_binary(config):
     compiler_cmd.extend(["-o", target])
     for ldflag in config["ldflags"]:
         compiler_cmd.append(ldflag)
-    __info(f'linking target {target}')
+    __info(f'Linking target {target}')
     __run_cmd(compiler_cmd)
 
 
@@ -240,8 +240,12 @@ def build_target():
 
 def run_target():
     """ Run target """
+    # Rebuild target if needed, with incremental compilation this should not do
+    # more work than needed.
+    build_target()
     config = __load_json()
     target = [config["out"] + "/" + config["target"]]
+    __info(f'Running target {target}')
     __run_cmd(target)
 
 
