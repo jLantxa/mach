@@ -1,0 +1,19 @@
+name: Mach
+
+on: [push, pull_request]
+
+jobs:
+  MachExample:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v2
+    - name: create template project, build it and run it
+      run: |
+        python3 mach.py new test
+        cd test
+        python3 ../mach.py run
