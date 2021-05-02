@@ -5,17 +5,6 @@ import logging
 import os
 import subprocess
 
-def _find_namespace(path):
-    components = []
-    while True:
-        path, folder = os.path.split(path)
-        components.append(folder)
-        if path == '':
-            break
-
-    namespace = '.'.join((element for element in reversed(components) if element != '.'))
-    return namespace
-
 class TargetException(Exception):
     pass
 
@@ -35,7 +24,7 @@ class Target():
             raise TargetException(f'target names cannot contain \":\"')
         self.type = target.pop('type', None)
         self.directory = directory
-        self.namespace = _find_namespace(self.directory)
+        self.namespace = self._find_namespace()
 
     @classmethod
     def accepts(cls, target_type):
@@ -47,6 +36,11 @@ class Target():
         """ Returns the target type """
         return cls.TARGET_TYPE
 
+    @classmethod
+    def is_runnable(cls):
+        """ Returns true if the target can be executed """
+        return cls.RUNNABLE
+
     # TODO: provide api to start jobs asynchronously. Futures would probably be
     #       a good fit for the task
     def _run_cmd(self, cmd):
@@ -54,9 +48,17 @@ class Target():
         logging.info(f'{self.name} - Running command: {" ".join(cmd)}')
         return subprocess.run(cmd, check=True)
 
-    def is_runnable(cls):
-        """ Returns true if the target can be executed """
-        return cls.RUNNABLE
+    def _find_namespace(self):
+        path = self.directory
+        components = []
+        while True:
+            path, folder = os.path.split(path)
+            components.append(folder)
+            if path == '':
+                break
+
+        namespace = '.'.join((element for element in reversed(components) if element != '.'))
+        return namespace
 
     def get_fully_qualified_name(self):
         """ Returns the fully qualified name of the target """

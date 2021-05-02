@@ -9,7 +9,7 @@ import json
 import logging
 import os
 
-import cc_targets
+import target.cc_targets as cc_targets
 from target import TargetException
 
 MACH_FILE_NAME = 'mach.json'
@@ -19,12 +19,12 @@ _config_handlers = [
     cc_targets.CcStaticLibrary
 ]
 
-def _handler_for_type(target_type):
+def get_handler_for_type(target_type):
+    """ Returns an appropriate handler for the supplied target type """
     for handler in _config_handlers:
         if handler.accepts(target_type=target_type):
             return handler
-    raise Exception(f'Target type "{target_type}" was not found!')
-
+    raise TargetException(f'Target type "{target_type}" was not found!')
 
 class Config():
     """ Config class """
@@ -46,7 +46,7 @@ class Config():
             if type is None:
                 raise TargetException('Target has no type!\n'
                     f'{json.dumps(target, indent=4)}')
-            handler = _handler_for_type(type)
+            handler = get_handler_for_type(type)
             self.targets.append(handler(target, config_directory))
 
     def _scan_directory(self, directory='.'):

@@ -6,7 +6,7 @@ import os
 from argparse import Namespace
 
 from config import Config
-from cc_targets import CcTarget
+from target.cc_targets import CcTarget
 
 class Compdb():
     def attach(self, subcommands):
