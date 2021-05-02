@@ -21,13 +21,14 @@ this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
-import datetime
 import json
+import logging
 import os
 import subprocess
-import sys
 import textwrap
 
+import cc_targets
+import config
 
 __VERSION = "0.0.1"
 
@@ -35,7 +36,6 @@ __MACH_FILE_NAME = "mach.json"
 
 __DEFAULT_MAIN_CPP = "main.cpp"
 
-__DEFAULT_COMPILER = "g++"
 __DEFAULT_INCLUDE = "include"
 __DEFAULT_SRC = "src"
 __DEFAULT_OUT = "out"
@@ -45,43 +45,63 @@ __DEFAULT_OUT = "out"
 LOG_VERBOSE = False
 
 
-def __cmd_new(args):
+def __cmd_new(config, args):
     """ Command new """
 
     if len(args) == 0:
-        __error("Expected project name")
+        logging.error("Expected project name")
+        return
     elif len(args) > 1:
-        __error(f"Unexpected args {__italic(__blue(str(args[1:])))}")
+        logging.error(f"Unexpected args {__italic(__blue(str(args[1:])))}")
+        return
+
+    if len(config.targets) != 0:
+        logging.error('Looks like there is already a project in a subdirectory')
+        return
 
     project_name = args[0]
     new_project(project_name)
 
 
-def __cmd_build(args):
+def __cmd_build(config, args):
     """ Command build """
 
     if len(args) > 0:
-        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+        logging.error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+        return
 
-    build_target()
+    for target in config.targets:
+        target.build()
 
 
-def __cmd_run(args):
+def __cmd_run(config, args):
     """ Command run """
 
-    if len(args) > 0:
-        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+    if len(args) == 0:
+        logging.error(f"Sorry, which target would you like to run?")
+        return
 
-    run_target()
+    target = config.find_target(args[0])
+    if target is None:
+        logging.error(f"I'm sorry, I can't find the target \"{args[0]}\" in your configuration files")
+        return
+
+    if not target.is_runnable():
+        logging.error(f'Oops, the selected target "{args[0]}" is not an executable file')
+        return
+
+    target.run(args[1:])
 
 
-def __cmd_compdb(args):
+def __cmd_compdb(config, args):
     """ Command compdb """
 
     if len(args) > 0:
-        __error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+        logging.error(f"Unexpected args {__italic(__blue(str(args[0:])))}")
+        return
 
-    build_compilation_database()
+    targets = (target for target in config.targets if issubclass(target.__class__, cc_targets.CcTarget))
+    build_compilation_database(targets)
 
 
 def new_project(project_name):
@@ -90,7 +110,8 @@ def new_project(project_name):
     try:
         os.mkdir(project_name)
     except FileExistsError:
-        __error(f"Project {__italic(__blue(project_name))} already exists")
+        logging.error(f"Project {__italic(__blue(project_name))} already exists")
+        return
 
     subdirs = [
         os.path.join(project_name, __DEFAULT_INCLUDE),
@@ -107,163 +128,20 @@ def new_project(project_name):
 
     __git_init(project_name)
 
-
-def __get_object_file_path(config, src):
-    """ Returns the path of the object file associated to the input source """
-    out_path = os.path.relpath(config["out"])
-    intermeditate_path = os.path.join(out_path, 'intermeditates')
-    src_dir = os.path.dirname(src)
-    src_name, _ = os.path.splitext(os.path.basename(src))
-    src_name += '.o'
-    object_dir = os.path.join(intermeditate_path, src_dir)
-    object_path = os.path.join(object_dir, src_name)
-    return object_path
-
-
-def __get_translation_unit_build_cmd(config, src):
-    """ Returns the build cmd for the associated source """
-    object_file = __get_object_file_path(config, src)
-
-    compiler_cmd = []
-    compiler_cmd.append(config["compiler"])
-    compiler_cmd.extend(["-c"])
-    for ccflag in config["ccflags"]:
-        compiler_cmd.append(ccflag)
-    compiler_cmd.extend(["-I", config["include"]])
-    compiler_cmd.append(src)
-    compiler_cmd.extend(["-o", object_file])
-    compiler_cmd.append("-MMD")
-    return compiler_cmd
-
-
-def __parse_deps(object_file):
-    """ Generator function that returns the dependencies of the object file """
-    deps_file_path, _ = os.path.splitext(object_file)
-    deps_file_path += '.d'
-    with open(deps_file_path, 'r') as deps_file:
-        for dependencies in deps_file:
-
-            dependencies = dependencies.replace(f'{object_file}: ', '')
-            dependencies = dependencies.replace(f'\\', '')
-            dependencies = dependencies.strip()
-            dependencies = dependencies.split()
-
-            for dependency in dependencies:
-                __verbose(f'found dependency "{dependency}" for target "{object_file}"')
-                yield dependency
-
-
-def __needs_rebuild(target, dependencies):
-    """ Returns true if the source needs to be built """
-    __verbose(f'checking if "{target}" needs to be rebuilt')
-    if not os.path.exists(target):
-        __verbose(f'"{target}" does not exist yet')
-        return True
-
-    def get_modification_time(path):
-        return datetime.datetime.fromtimestamp(os.path.getmtime(path))
-
-    object_file_modification_time = get_modification_time(target)
-    def was_updated(dependency):
-        if os.path.exists(dependency):
-            dep_modification_time = get_modification_time(dependency)
-            updated = dep_modification_time > object_file_modification_time
-            if updated:
-                __verbose(f'dependency "{dependency}" is newer!')
-            else:
-                __verbose(f'dependency "{dependency}" is up to date')
-            return updated
-        else:
-            __verbose(f'dependency "{dependency}" does not exist')
-            return True
-
-    return any(map(was_updated, dependencies))
-
-
-def __build_tranlation_unit(config, src):
-    """ Builds the given translation unit """
-    object_file = __get_object_file_path(config, src)
-    os.makedirs(os.path.dirname(object_file), exist_ok=True)
-    if __needs_rebuild(object_file, __parse_deps(object_file)):
-        __info(f'Building {object_file}')
-        cmd = __get_translation_unit_build_cmd(config, src)
-        __run_cmd(cmd)
-    else:
-        __verbose(f'skipping rebuild for "{src}"')
-
-
-def __link_binary(config):
-    """ links the target binary """
-    target = os.path.join(config['out'], config['target'])
-    to_object_file = lambda src : __get_object_file_path(config, src)
-    object_files = list(map(to_object_file, config["srcs"]))
-    __verbose(f'linking target {target} from {object_files}')
-
-    if not __needs_rebuild(target, object_files):
-        __verbose(f'skipping linking for target {config["target"]}')
-        return
-
-    compiler_cmd = []
-    compiler_cmd.append(config["compiler"])
-    for ccflag in config["ccflags"]:
-        compiler_cmd.append(ccflag)
-    compiler_cmd.extend(["-I", config["include"]])
-    compiler_cmd.extend(object_files)
-    compiler_cmd.extend(["-o", target])
-    for ldflag in config["ldflags"]:
-        compiler_cmd.append(ldflag)
-    __info(f'Linking target {target}')
-    __run_cmd(compiler_cmd)
-
-
-def build_compilation_database():
+def build_compilation_database(targets):
     """ Generates a compile_commands.json compatible database that can be used
         with programs such as clangd and vscode to get IntelliSense-like
         features.
     """
-    config = __load_json()
     database = []
-    for src in config["srcs"]:
-        database.append({
-            "arguments": __get_translation_unit_build_cmd(config, src),
-            "directory": os.getcwd(),
-            "file": src
-        })
-    with open(os.path.join(config["out"], 'compile_commands.json'), 'w') as db_file:
+    for target in targets:
+        database.extend(target.get_compilation_database())
+    with open(os.path.join('out', 'compile_commands.json'), 'w') as db_file:
         json.dump(database, db_file, indent=4)
-
-
-def build_target():
-    """ Build target """
-    config = __load_json()
-    for src in config["srcs"]:
-        __build_tranlation_unit(config, src)
-    __link_binary(config)
-
-
-def run_target():
-    """ Run target """
-    # Rebuild target if needed, with incremental compilation this should not do
-    # more work than needed.
-    build_target()
-    config = __load_json()
-    target = [config["out"] + "/" + config["target"]]
-    __info(f'Running target {target}')
-    __run_cmd(target)
-
-
-def __load_json():
-    try:
-        mach_file = open(__MACH_FILE_NAME, 'r')
-    except FileNotFoundError:
-        __error(f"No {__italic(__blue(__MACH_FILE_NAME))} file found")
-    return json.load(mach_file)
-
 
 def __git_init(path):
     """ Init git repository in the project path """
-    __run_cmd(["git", "init", f"{path}/", "-q"])
-
+    subprocess.run(["git", "init", f"{path}/", "-q"], check=True)
 
 def __touch_gitignore(path):
     """ Create gitignore """
@@ -281,24 +159,25 @@ def __touch_mach_json(path, target):
     """ Create mach.json """
 
     template = f'''\
-        {{
-            "target" : "{target}",
-            "include" : "{__DEFAULT_INCLUDE}",
-            "out" : "{__DEFAULT_OUT}",
+        [
+            {{
+                "target" : "{target}",
+                "type" : "cc_binary",
+                "include" : "[{__DEFAULT_INCLUDE}]",
 
-            "compiler" : "{__DEFAULT_COMPILER}",
-            "ccflags" : [
+                "ccflags" : [
 
-            ],
+                ],
 
-            "ldflags" : [
+                "ldflags" : [
 
-            ],
+                ],
 
-            "srcs" : [
-                "{__DEFAULT_SRC}/{__DEFAULT_MAIN_CPP}"
-            ]
-        }}
+                "srcs" : [
+                    "{__DEFAULT_SRC}/{__DEFAULT_MAIN_CPP}"
+                ]
+            }}
+        ]
     '''
     mach_file = open(path, 'w')
     mach_file.write(textwrap.dedent(template))
@@ -341,29 +220,8 @@ def __italic(text):
     return "\033[3m" + text + "\033[0m"
 
 
-def __error(msg, do_exit=True):
-    """ Print an error message and exit """
-    print(__bold(__red("Error:")), msg)
-    if do_exit:
-        sys.exit(-1)
-
-
-def __info(msg):
-    """ Print an info message """
-    print(__bold(__green("Info:")), msg)
-
-
-def __verbose(msg):
-    """ Print an verbose message """
-    global LOG_VERBOSE
-    if LOG_VERBOSE:
-        print(__bold(__blue("Verbose:")), msg)
-
-
-def __run_cmd(cmd):
-    """ Run a command in the system shell """
-    __verbose(f'Executing program: {" ".join(cmd)}')
-    return subprocess.run(cmd, check=True)
+def configure_logging(verbose):
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.WARN)
 
 
 if __name__ == "__main__":
@@ -389,11 +247,13 @@ if __name__ == "__main__":
 
     cmd_name = arguments.command[0]
     cmd_args = arguments.command[1:]
-    LOG_VERBOSE = arguments.verbose
+    configure_logging(arguments.verbose)
 
-    if cmd_name in commands.keys():
-        __verbose(f'Running command {cmd_name} with arguments {cmd_args}')
+    # Create mach configuration that will be handled by the commands
+    configuration = config.Config()
+
+    if cmd_name in commands:
         command = commands[cmd_name]
-        command(cmd_args)
+        command(configuration, cmd_args)
     else:
-        __error(f"Unknown command {__italic(__blue(cmd_name))}")
+        logging.error(f"Unknown command {__italic(__blue(cmd_name))}")
