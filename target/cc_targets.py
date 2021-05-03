@@ -60,6 +60,8 @@ def _parse_deps(object_file):
 class CcTarget(Target):
     DEFAULT_CC = 'gcc'
     DEFAULT_CXX = 'g++'
+    DEFAULT_AR = 'ar'
+    DEFAULT_ARFLAGS = ['-rcs']
 
     def __init__(self, target, directory):
         super().__init__(target, directory)
@@ -81,6 +83,7 @@ class CcTarget(Target):
         for dir in target.pop('srcs', []):
             include_dir = os.path.join(self.directory, dir)
             self.include_dirs.append(os.path.normpath(include_dir))
+        self.static_libs = target.pop('static_libs', [])
 
     def validate_keys(self, target):
         """ If there are any keys left in the dictionary by the time this
@@ -99,6 +102,21 @@ class CcTarget(Target):
                 "file": src
             })
         return database
+
+    def resolve_dependencies(self, target_finder):
+        """ Resolves the dependencies for the given target """
+        for lib in self.static_libs:
+            target = target_finder(lib)
+            if target.TARGET_TYPE != CcStaticLibrary.TARGET_TYPE:
+                raise TargetException(f'Can\'t link target "{lib}" as a static library for "{self.name}"')
+            self.dependencies[lib] = target
+            self.include_dirs.extend(target.exported_include_dirs)
+            installed_loc = target.get_installed_location()
+            self.ld_flags.extend(['-L', os.path.dirname(installed_loc)])
+            target_name = target.name
+            if target_name.startswith('lib'):
+                target_name = target_name[3:]
+            self.ld_flags.extend(['-l', target_name])
 
     def _get_compiler_for_source(self, source):
         """ Returns the compiler for the provided source file """
@@ -158,6 +176,12 @@ class CcBinary(CcTarget):
 
     def build(self):
         """ Builds the target """
+        # Build dependencies first or otherwise the build will fail.
+        # this should be quite quick, as if the build will only actually be done
+        # the first time. Successive calls will simply check if the target is
+        # up to date.
+        for dependency in self.dependencies.values():
+            dependency.build()
         for source in self.sources:
             self._build_translation_unit(source)
         self._link_binary()
@@ -200,14 +224,39 @@ class CcStaticLibrary(CcTarget):
     def __init__(self, target, directory):
         """ Constructor for a CcStaticLibrary """
         super().__init__(target, directory)
+        self.ar = target.pop('ar', self.DEFAULT_AR)
+        self.ar_flags = target.pop('arflags', self.DEFAULT_ARFLAGS)
+        self.exported_include_dirs = \
+            [os.path.join(self.directory, src) for src in target.pop('exported_include', [])]
+        self.include_dirs.extend(self.exported_include_dirs)
         self.validate_keys(target)
 
     def get_installed_location(self):
         """ Returns the path of the installed library """
-        return os.path.join('out', 'lib', self.namespace, self.name)
+        return os.path.join('out', 'lib', self.namespace, self.name + '.a')
 
     def build(self):
         """ Builds the target """
         for source in self.sources:
             self._build_translation_unit(source)
-        logging.warn(f'Archiving is not yet supported for "{self.TARGET_TYPE}"')
+        self._archive_library()
+
+    def _archive_library(self):
+        """ Archives the library as a '.a' file """
+        target = self.get_installed_location()
+        to_object_file = lambda src : _get_object_file_path(src)
+        object_files = list(map(to_object_file, self.sources))
+        logging.debug(f'Creating archive {target} from {object_files}')
+
+        if not _needs_rebuild(target, object_files):
+            logging.debug(f'skipping, no files changed for target {self.name}')
+            return
+
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        compiler_cmd = []
+        compiler_cmd.append(self.ar)
+        compiler_cmd.extend(self.ar_flags)
+        compiler_cmd.append(target)
+        compiler_cmd.extend(object_files)
+        logging.info(f'Archiving target {target}')
+        self._run_cmd(compiler_cmd)

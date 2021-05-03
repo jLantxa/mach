@@ -38,6 +38,11 @@ class Config():
             with open(mach_file, 'r') as mfile:
                 mach_json = json.load(mfile)
                 self._handle_config_file(mach_json, mach_file)
+        # Now that we have all of the targets, it's time to resolve dependencies between them
+        for target in self.targets:
+            def target_finder(name):
+                return self.find_target(name)
+            target.resolve_dependencies(target_finder)
 
     def _handle_config_file(self, config_file, path):
         config_directory = os.path.dirname(path)
