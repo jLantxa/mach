@@ -16,7 +16,7 @@ class Target():
     RUNNABLE = False
 
     def __init__(self, target, directory):
-        self.dependencies = []
+        self.dependencies = {}
         self.name = target.pop('target', None)
         if self.name is None:
             raise TargetException(f'target has no name! {target}')
