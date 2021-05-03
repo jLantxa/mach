@@ -1,0 +1,32 @@
+[
+    {
+        "target" : "template",
+        "type" : "cc_binary",
+        "include" : ["bin/include"],
+
+        "ccflags" : [
+
+        ],
+
+        "ldflags" : [
+
+        ],
+
+        "srcs" : [
+            "bin/src/main.cpp"
+        ],
+
+        "static_libs" : [
+            ":libtemplate"
+        ]
+    },
+    {
+        "target" : "libtemplate",
+        "type" : "cc_library_static",
+        "include" : ["lib/include"],
+        "exported_include" : ["lib/include"],
+        "srcs" : [
+            "lib/src/lib.cpp"
+        ]
+    }
+]
