@@ -79,7 +79,6 @@ class CcTarget(Target):
         self.cxx = target.pop('cxx', self.DEFAULT_CXX)
         self.cc = target.pop('cc', self.DEFAULT_CC)
 
-        self.include_dirs = []
         for dir in target.pop('srcs', []):
             include_dir = os.path.join(self.directory, dir)
             self.include_dirs.append(os.path.normpath(include_dir))
