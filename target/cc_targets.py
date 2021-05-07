@@ -13,7 +13,7 @@ def _get_object_file_path(source):
     src_dir = os.path.dirname(source)
     src_name, _ = os.path.splitext(os.path.basename(source))
     obj_name = src_name + '.o'
-    object_path = os.path.join('out', 'intermeditates', src_dir, obj_name)
+    object_path = os.path.join('out', 'intermediates', src_dir, obj_name)
     return object_path
 
 def _needs_rebuild(target, dependencies):
