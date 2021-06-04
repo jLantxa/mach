@@ -26,7 +26,7 @@ import logging
 import config
 from subcommands import Subcommands
 
-__VERSION = "0.0.1"
+__VERSION = "0.1.0"
 
 def __blue(text):
     return "\033[96m" + text + "\033[0m"
